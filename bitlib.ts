@@ -39,6 +39,7 @@ async function callInSubprocess(ns: NS, fn: string, args: any[]): Promise<any> {
 	const reply = ns.pid;
 	const ramhost = getDynamicRAM(ns, masterLister(ns));
 	const ramcost = 1.6 + ns.getFunctionRamCost(fn);
+	ns.scp("pawn.js", ramhost.name, "home");
 	while (ramhost.freeRam < ramcost) {
 		await ns.sleep(1);
 	}
@@ -47,7 +48,7 @@ async function callInSubprocess(ns: NS, fn: string, args: any[]): Promise<any> {
 		ramhost.name,
 		{ ramOverride: ramcost, temporary: true },
 		reply, id, fn, ...args.map(arg => JSON.stringify(arg))
-	)
+	);
 	let data = ns.readPort(reply);
 	while (data == "NULL PORT DATA") {
 		await ns.sleep(1);
