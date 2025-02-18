@@ -28,8 +28,7 @@ export interface ProxyNS extends Proxied<NS> {
 }
 
 /**
- * Creates a subscript on the home computer and passes it a function to run, waiting if there's not enough memory.
- * This is very likely going to be rewritten once a nice, clean system of tracking available memory is written. 
+ * Creates a subscript on the largest free accessable server and passes it a function to run, waiting if there's not enough memory.
  * @param ns BitBurner NS object
  * @param fn function being called as a string
  * @param args any arguments the function is being passed
@@ -38,14 +37,14 @@ export interface ProxyNS extends Proxied<NS> {
 async function callInSubprocess(ns: NS, fn: string, args: any[]): Promise<any> {
 	const id = 0;
 	const reply = ns.pid;
+	const ramhost = getDynamicRAM(ns, masterLister(ns));
 	const ramcost = 1.6 + ns.getFunctionRamCost(fn);
-	let ramhost = "home";
-	while ((ns.getServerMaxRam(ramhost) - ns.getServerUsedRam(ramhost)) < ramcost) {
+	while (ramhost.freeRam < ramcost) {
 		await ns.sleep(1);
 	}
 	ns.exec(
 		'pawn.js',
-		ramhost,
+		ramhost.name,
 		{ ramOverride: ramcost, temporary: true },
 		reply, id, fn, ...args.map(arg => JSON.stringify(arg))
 	)
@@ -120,12 +119,6 @@ export function wrapNS(ns: NS): ProxyNS {
  * @returns root access as a boolean
  */
 export function access(ns: NS, target: string): boolean {
-	ns.disableLog('brutessh');
-	ns.disableLog('ftpcrack');
-	ns.disableLog('relaysmtp');
-	ns.disableLog('httpworm');
-	ns.disableLog('sqlinject');
-	ns.disableLog('nuke');
 	for (const fn of [ns.brutessh, ns.ftpcrack, ns.relaysmtp, ns.httpworm, ns.sqlinject, ns.nuke]) try { fn(target) } catch { }
 	return (ns.hasRootAccess(target));
 }
@@ -149,3 +142,32 @@ export function masterLister(ns: NS): string[] {
 	return masterlist;
 }
 
+/**
+ * 
+ * @param ns BitBurner NS object
+ * @param server 
+ * @returns 
+ */
+export function getServerReservation(ns: NS, server: string): number {
+	if (server === 'home') {
+		return Math.max(Math.trunc(ns.getServerMaxRam(server) / 4), 128)
+	} else if (server.includes("hacknet")) {
+		return Math.trunc(ns.getServerMaxRam(server) / 2)
+	} else {
+		return 0
+	}
+}
+
+/**
+ * 
+ * @param ns BitBurner NS object
+ * @param servers 
+ * @returns 
+ */
+export function getDynamicRAM(ns: NS, servers: string[]): { name: string, freeRam: number } {
+	let ramlist = servers.map(name => ({
+		name,
+		freeRam: ns.getServerMaxRam(name) - ns.getServerUsedRam(name) - getServerReservation(ns, name)
+	}));
+	return ramlist.reduce((highestRam, currentRam) => currentRam.freeRam > highestRam.freeRam ? currentRam : highestRam);
+}
