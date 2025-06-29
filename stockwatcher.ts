@@ -1,6 +1,5 @@
 import { NS } from "@ns";
-//import { bitnodeAccess, howTheTurnsTable, thereCanBeOnlyOne } from "./bitlib";
-import { bitnodeAccess, thereCanBeOnlyOne } from "./bitlib";
+import { bitnodeAccess, howTheTurnsTable, thereCanBeOnlyOne } from "./bitlib";
 export async function main(ns: NS): Promise<void> {
 	ns.disableLog('ALL');
 	thereCanBeOnlyOne(ns);
@@ -82,7 +81,6 @@ export async function main(ns: NS): Promise<void> {
 				}
 			}
 		}
-		/*
 		ns.clearLog();
 		ns.printRaw(howTheTurnsTable(ns, {
 			name: "string",
@@ -94,7 +92,6 @@ export async function main(ns: NS): Promise<void> {
 			shortStocks: "number",
 			shortProfit: "number"
 		}, stocktracker));
-		*/
 		await ns.stock.nextUpdate();
 	}
 }

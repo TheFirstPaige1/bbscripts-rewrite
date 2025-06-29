@@ -1,4 +1,9 @@
-import { Bladeburner, CodingContract, Corporation, Gang, Go, Grafting, NS, ReactElement, Singularity, Sleeve, Stanek, TIX } from "@ns";
+import ReactLib from 'react';
+declare const React: typeof ReactLib;
+import {
+	Bladeburner, CodingContract, Corporation, Gang, Grafting, NS, ReactElement,
+	Singularity, Sleeve, Stanek, TIX, Go
+} from "@ns";
 
 // every possible function type is a subtype of this
 type AnyFn = (...args: any) => any;
@@ -187,7 +192,6 @@ export function thereCanBeOnlyOne(ns: NS): void {
  * @param tableData 
  * @returns 
  */
-/*
 export function howTheTurnsTable(ns: NS, headerKey: any, tableData: any[]): ReactElement {
 	let headerReact = [];
 	let headers = Object.keys(headerKey);
@@ -216,7 +220,6 @@ export function howTheTurnsTable(ns: NS, headerKey: any, tableData: any[]): Reac
 	}
 	return React.createElement('tbody', {}, reactTable);
 }
-*/
 
 export function formatTimeString(ns: NS, milliseconds: number): string {
 	return ns.tFormat(milliseconds, false).replace(/ days?/, 'd').replace(/ hours?/, 'h').replace(/ minutes?/, 'm').replace(/ seconds?/,

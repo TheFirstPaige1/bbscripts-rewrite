@@ -1,6 +1,5 @@
 import { NS } from "@ns";
-//import { getDynamicRAM, howTheTurnsTable, masterLister, thereCanBeOnlyOne } from "./bitlib";
-import { getDynamicRAM, masterLister, thereCanBeOnlyOne } from "./bitlib";
+import { getDynamicRAM, howTheTurnsTable, masterLister, thereCanBeOnlyOne } from "./bitlib";
 export async function main(ns: NS): Promise<void> {
 	ns.disableLog('ALL');
 	thereCanBeOnlyOne(ns);
@@ -75,7 +74,6 @@ export async function main(ns: NS): Promise<void> {
 				}
 			}
 		}
-		/*
 		ns.clearLog();
 		ns.printRaw(howTheTurnsTable(ns, {
 			name: "string",
@@ -88,7 +86,6 @@ export async function main(ns: NS): Promise<void> {
 			threads: "string",
 			timer: "duration"
 		}, hacklist));
-		*/
 		if (formsexe) {
 			let lowestms = Math.min(...hacklist.map(serv => serv.timer));
 			hacklist.forEach(target => { target.timer -= lowestms; });
