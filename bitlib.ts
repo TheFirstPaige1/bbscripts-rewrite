@@ -1,5 +1,4 @@
-import { Bladeburner, CodingContract, Corporation, Gang, Go, Grafting, NS, Singularity, Sleeve, Stanek, TIX } from "@ns";
-
+import { Bladeburner, CodingContract, Corporation, Gang, Go, Grafting, NS, ReactElement, Singularity, Sleeve, Stanek, TIX } from "@ns";
 
 // every possible function type is a subtype of this
 type AnyFn = (...args: any) => any;
@@ -39,7 +38,7 @@ async function callInSubprocess(ns: NS, fn: string, args: any[]): Promise<any> {
 	const reply = ns.pid;
 	const ramhost = getDynamicRAM(ns, masterLister(ns));
 	const ramcost = 1.6 + ns.getFunctionRamCost(fn);
-	ns.scp("pawn.js", ramhost.name, "home");
+	ns.scp('pawn.js', ramhost.name, "home");
 	while (ramhost.freeRam < ramcost) {
 		await ns.sleep(1);
 	}
@@ -160,7 +159,7 @@ export function getServerReservation(ns: NS, server: string): number {
 }
 
 /**
- * 
+ * Returns the name and free RAM count of the server with the most free RAM out of a given array of servers.
  * @param ns BitBurner NS object
  * @param servers 
  * @returns 
@@ -171,4 +170,68 @@ export function getDynamicRAM(ns: NS, servers: string[]): { name: string, freeRa
 		freeRam: ns.getServerMaxRam(name) - ns.getServerUsedRam(name) - getServerReservation(ns, name)
 	}));
 	return ramlist.reduce((highestRam, currentRam) => currentRam.freeRam > highestRam.freeRam ? currentRam : highestRam);
+}
+
+/**
+ * Enforces that a script that calls this is the only instance of itself. This is useful for manager scripts.
+ * @param ns BitBurner NS object
+ */
+export function thereCanBeOnlyOne(ns: NS): void {
+	for (const process of ns.ps()) { if (process.pid != ns.pid && process.filename == ns.getScriptName()) { ns.kill(process.pid); } }
+}
+
+/**
+ * Formats a React table with the given data and header keys.
+ * @param ns BitBurner NS object
+ * @param headerKey 
+ * @param tableData 
+ * @returns 
+ */
+/*
+export function howTheTurnsTable(ns: NS, headerKey: any, tableData: any[]): ReactElement {
+	let headerReact = [];
+	let headers = Object.keys(headerKey);
+	for (const header of headers) { headerReact.push(React.createElement('th', { style: { "padding": "5px", "textDecoration": "underline" } }, header)); }
+	let reactTable = [React.createElement('tr', {}, headerReact)];
+	for (const row of tableData) {
+		let rowdata = [];
+		for (let i = 0; i < headers.length; i++) {
+			let celldata = row[headers[i]];
+			let format = Object.values(headerKey)[i] as string;
+			if (format == 'number') {
+				rowdata.push(React.createElement('td', { style: { "padding": "5px", "textAlign": "right" } }, ns.formatNumber(celldata)));
+			} else if (format == 'integer') {
+				rowdata.push(React.createElement('td', { style: { "padding": "5px", "textAlign": "right" } }, ns.formatNumber(celldata, undefined, undefined, true)));
+			} else if (format == 'duration') {
+				rowdata.push(React.createElement('td', { style: { "padding": "5px", "textAlign": "right" } }, formatTimeString(ns, celldata)));
+			} else if (format.includes('progress')) {
+				rowdata.push(React.createElement('td', { style: { "padding": "5px", "textAlign": "center" } }, formatLoadingBar(celldata, parseInt(format.split(',')[1]))));
+			} else if (i == 0) {
+				rowdata.push(React.createElement('td', { style: { "padding": "5px", "textAlign": "right" } }, celldata));
+			} else {
+				rowdata.push(React.createElement('td', { style: { "padding": "5px", "textAlign": "center" } }, celldata));
+			}
+		}
+		reactTable.push(React.createElement('tr', {}, rowdata));
+	}
+	return React.createElement('tbody', {}, reactTable);
+}
+*/
+
+export function formatTimeString(ns: NS, milliseconds: number): string {
+	return ns.tFormat(milliseconds, false).replace(/ days?/, 'd').replace(/ hours?/, 'h').replace(/ minutes?/, 'm').replace(/ seconds?/,
+		's').replaceAll(', ', '') + " " + Math.floor(milliseconds % 1000).toString().padStart(3, '0') + 'ms';
+}
+
+export function formatLoadingBar(percent: number, length: number): string {
+	let finalstring = "";
+	let sublength = length - 2;
+	let percentlength = Math.floor(sublength * percent);
+	while (finalstring.length < percentlength) { finalstring += "|"; }
+	while (finalstring.length < sublength) { finalstring += "-"; }
+	return "[" + finalstring + "]";
+}
+
+export function bitnodeAccess(ns: NS, node: number, level: number): boolean {
+	return (ns.getResetInfo().currentNode == node) || ((ns.getResetInfo().ownedSF.get(node) || 0) >= level);
 }
