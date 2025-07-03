@@ -37,19 +37,20 @@ export async function main(ns: NS): Promise<void> {
 				let mostfreeram = getDynamicRAM(ns, ramlist);
 				let maxthreads = Math.trunc(mostfreeram.freeRam / 2);
 				if (maxthreads > 0) {
+					let threadcount = 1;
+					let hackaction = 0;
 					target.ramServ = mostfreeram.name;
 					if (target.security > (ns.getServerMinSecurityLevel(target.name) + 5)) {
 						target.hackOp = "weaken";
+						hackaction = 0;
 						let weakengoal = target.security - ns.getServerMinSecurityLevel(target.name);
-						let threadcount = 1;
 						while (ns.weakenAnalyze(threadcount, ns.getServer(target.ramServ).cpuCores) < weakengoal) { threadcount++; }
 						threadcount = Math.min(threadcount, maxthreads);
 						target.threads = threadcount;
 						if (formsexe) { target.timer = ns.formulas.hacking.weakenTime(ns.getServer(target.name), ns.getPlayer()); }
-						target.pid = ns.exec("digger.js", target.ramServ, threadcount, 0, target.name);
 					} else if (target.money < (ns.getServerMaxMoney(target.name) * 0.75)) {
 						target.hackOp = "grow";
-						let threadcount = 1;
+						hackaction = 1;
 						if (target.money < 10) { threadcount = maxthreads; }
 						else {
 							if (formsexe) {
@@ -62,15 +63,15 @@ export async function main(ns: NS): Promise<void> {
 						}
 						target.threads = threadcount;
 						if (formsexe) { target.timer = ns.formulas.hacking.growTime(ns.getServer(target.name), ns.getPlayer()); }
-						target.pid = ns.exec("digger.js", target.ramServ, threadcount, 1, target.name);
 					} else {
 						target.hackOp = "hack";
-						let threadcount = Math.trunc(ns.hackAnalyzeThreads(target.name, target.money * 0.9));
+						hackaction = 2;
+						threadcount = Math.trunc(ns.hackAnalyzeThreads(target.name, target.money * 0.9));
 						threadcount = Math.min(threadcount, maxthreads);
 						target.threads = threadcount;
 						if (formsexe) { target.timer = ns.formulas.hacking.hackTime(ns.getServer(target.name), ns.getPlayer()); }
-						target.pid = ns.exec("digger.js", target.ramServ, threadcount, 2, target.name);
 					}
+					target.pid = ns.exec("digger.js", target.ramServ, {threads: threadcount, temporary: true}, hackaction, target.name);
 				}
 			}
 		}

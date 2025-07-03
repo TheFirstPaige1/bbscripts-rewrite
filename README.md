@@ -1,4 +1,7 @@
-Scripts for Bitburner 2.7.0. An attempt to ground-up rewrite the older set of scripts.
+Scripts for Bitburner 2.8.1. An attempt to ground-up rewrite the older set of scripts.
+
+IDEA: write up a to-do list calculator that writes to a file that the seperate scripts read from
+- have a seperate script for each mechanic
 
 The pseudocode of the main looping script is as follows:
 
