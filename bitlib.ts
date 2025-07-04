@@ -516,13 +516,8 @@ export async function getRemainingFactions(ns: NS): Promise<string[]> {
 	return await asyncFilter(desiredfactions, async fac => await factionHasAugs(ns, fac));
 }
 
-export async function joinEveryInvitedFaction(ns: NS): Promise<void> {
-	const cityFactions = ["Aevum", "Chongqing", "New Tokyo", "Ishima", "Sector-12", "Volhaven"];
+export async function joinInvitedFactions(ns: NS): Promise<void> {
 	const wsing = wrapNS(ns).singularity;
-	if (cityFactions.some(fac => ns.getPlayer().factions.includes(fac))) {
-		for (const fac of await wsing.checkFactionInvitationsD()) { await wsing.joinFactionD(fac); }
-	} else {
-		for (const fac of await wsing.checkFactionInvitationsD()) { if (!cityFactions.includes(fac)) { await wsing.joinFactionD(fac); } }
-		for (const city of cityFactions) { if (await factionHasAugs(ns, city)) { await wsing.joinFactionD(city); } }
-	}
+	const invites = await wsing.checkFactionInvitationsD();
+	for (const fac of desiredfactions) { if (invites.includes(fac) && (await factionHasAugs(ns, fac))) { wsing.joinFactionD(fac); } }
 }
