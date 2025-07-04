@@ -32,6 +32,60 @@ export interface ProxyNS extends Proxied<NS> {
 }
 
 /**
+ * A hardcoded list of most of the normal factions in the game, ordered in a rough descending list of work priority. 
+ */
+export const desiredfactions = [
+	"Netburners",
+	"Tian Di Hui",
+	"Aevum",
+	"CyberSec",
+	"Chongqing",
+	"New Tokyo",
+	"Ishima",
+	"Sector-12",
+	"NiteSec",
+	"Tetrads",
+	"Bachman & Associates",
+	"BitRunners",
+	"ECorp",
+	"Daedalus",
+	"Fulcrum Secret Technologies",
+	"The Black Hand",
+	"The Dark Army",
+	"Clarke Incorporated",
+	"OmniTek Incorporated",
+	"NWO",
+	"Blade Industries",
+	"The Covenant",
+	"Illuminati",
+	"Slum Snakes",
+	"Volhaven",
+	"Speakers for the Dead",
+	"The Syndicate",
+	"MegaCorp",
+	"KuaiGong International",
+	"Silhouette"
+];
+
+/**
+ * A list of names for naming gang members with. 
+ */
+export const gangNames = [
+	"Jerry",
+	"George",
+	"Elaine",
+	"Kramer",
+	"Konata",
+	"Kagami",
+	"Miyuki",
+	"Tsukasa",
+	"Finn",
+	"Jake",
+	"Bonnibel",
+	"Marcilene"
+];
+
+/**
  * Creates a subscript on the largest free accessable server and passes it a function to run, waiting if there's not enough memory.
  * @param ns BitBurner NS object
  * @param fn function being called as a string
@@ -148,7 +202,7 @@ export function masterLister(ns: NS): string[] {
 }
 
 /**
- * 
+ * Returns how much RAM a server will always leave free. This handles weird cases, like hacknet servers. 
  * @param ns BitBurner NS object
  * @param server 
  * @returns 
@@ -221,11 +275,24 @@ export function howTheTurnsTable(ns: NS, headerKey: any, tableData: any[]): Reac
 	return React.createElement('tbody', {}, reactTable);
 }
 
+/**
+ * Formats a given duration in milliseconds into something more useful to the user. Used for react tables.
+ * @param ns BitBurner NS object
+ * @param milliseconds duration in milliseconds as a number
+ * @returns the duration formatted in human-readable text as a string
+ */
 export function formatTimeString(ns: NS, milliseconds: number): string {
 	return ns.tFormat(milliseconds, false).replace(/ days?/, 'd').replace(/ hours?/, 'h').replace(/ minutes?/, 'm').replace(/ seconds?/,
 		's').replaceAll(', ', '') + " " + Math.floor(milliseconds % 1000).toString().padStart(3, '0') + 'ms';
 }
 
+/**
+ * Formats a percentage as a simple progress bar, primarily for use in react tables.
+ * Despite the name, this can be used to format any information given as a percent figure.
+ * @param percent percent of the bar to be filled, as a number
+ * @param length length of the bar, as a number
+ * @returns a formatted progress bar, as a string
+ */
 export function formatLoadingBar(percent: number, length: number): string {
 	let finalstring = "";
 	let sublength = length - 2;
@@ -235,6 +302,97 @@ export function formatLoadingBar(percent: number, length: number): string {
 	return "[" + finalstring + "]";
 }
 
+/**
+ * Returns a boolean on specific SF access, for purposes of detecting if specific mechanics are available.
+ * Note that due to getResetInfo().ownedSF respecting BitNode options, this function does also.
+ * @param ns BitBurner NS object
+ * @param node BitNode number
+ * @param level Source File level
+ * @returns boolean on if the specified BN/SF content is available
+ */
 export function bitnodeAccess(ns: NS, node: number, level: number): boolean {
 	return (ns.getResetInfo().currentNode == node) || ((ns.getResetInfo().ownedSF.get(node) || 0) >= level);
+}
+
+/**
+ * Creates an array detailing the server network, in the form of string pairs. 
+ * The first of a pair is the name of a server, the second is the name of the server that is one step closer to home.
+ * @param ns BitBurner NS object
+ * @returns an array containing server name string pair arrays
+ */
+export function netScan(ns: NS): string[][] {
+	let currentserver = "home";
+	let scanservers = ["home"];
+	let knownservers = [] as string[];
+	let servermap = [["home", "home"]];
+	while (scanservers.length > 0) {
+		currentserver = scanservers[0];
+		knownservers.push(currentserver);
+		for (const scantarg of ns.scan(currentserver)) {
+			if (!scanservers.includes(scantarg) && !knownservers.includes(scantarg)) {
+				scanservers.push(scantarg);
+				servermap.push([scantarg, currentserver]);
+			}
+		}
+		scanservers = scanservers.slice(1);
+	}
+	return servermap;
+}
+
+/**
+ * Attempts to connect to a given server by daisy-chaining between it and home.
+ * @param ns BitBurner NS object
+ * @param target string of the server to connect to
+ */
+export function remoteConnect(ns: NS, target: string): void {
+	const networkmap = netScan(ns);
+	let next = target;
+	let netpath = [target];
+	for (let i = networkmap.length - 1; i > 0; i--) {
+		if (networkmap[i][0] == next) {
+			next = networkmap[i][1];
+			netpath.unshift(networkmap[i][1]);
+		}
+	}
+	for (const next of netpath) { ns.singularity.connect(next); }
+}
+
+/**
+ * 
+ * @param ns BitBurner NS object
+ * @param target targeted server to backdoor, given as a string
+ * @param wait boolean that sets if the function will wait until the backdoor subscript finishes
+ */
+export async function openTheDoor(ns: NS, target: string, wait: boolean): Promise<void> {
+	if (access(ns, target) && (ns.getHackingLevel() >= ns.getServerRequiredHackingLevel(target)) && !ns.getServer(target).backdoorInstalled) {
+		let ramserver = getDynamicRAM(ns, masterLister(ns).filter(serv => (ns.hasRootAccess(serv) && (ns.getServerMaxRam(serv) > 0)))).name;
+		ns.scp("knocker.js", ramserver, "home");
+		remoteConnect(ns, target);
+		let pid = ns.exec("knocker.js", ramserver, {threads: 1, temporary: true});
+		await ns.sleep(1);
+		ns.singularity.connect("home");
+		if (wait) { while (ns.isRunning(pid)) { await ns.sleep(1000); } }
+	}
+}
+
+/**
+ * 
+ * @param ns 
+ * @returns 
+ */
+export async function augLister(ns: NS): Promise<string[]> {
+	let auglist = [] as string[];
+	for (const faction of desiredfactions) {
+		const factaugs = await wrapNS(ns).singularity.getAugmentationsFromFactionD(faction);
+		for (const targaug of factaugs) { if (!auglist.includes(targaug)) { auglist.push(targaug); } }
+	}
+	if (bitnodeAccess(ns, 6, 1) || bitnodeAccess(ns, 7, 1)) { 
+		const factaugs = await wrapNS(ns).singularity.getAugmentationsFromFactionD("Bladeburners");
+		for (const targaug of factaugs) { auglist.push(targaug); }
+	}
+	if (bitnodeAccess(ns, 13, 1)) { 
+		const factaugs = await wrapNS(ns).singularity.getAugmentationsFromFactionD("Church of the Machine God");
+		for (const targaug of factaugs) { auglist.push(targaug); }
+	}
+	return auglist.sort((a, b) => { return ns.singularity.getAugmentationRepReq(a) - ns.singularity.getAugmentationRepReq(b); });
 }
