@@ -1,8 +1,8 @@
 import ReactLib from 'react';
 declare const React: typeof ReactLib;
 import {
-	Bladeburner, CodingContract, Corporation, Gang, Grafting, NS, ReactElement,
-	Singularity, Sleeve, Stanek, TIX, Go
+	Bladeburner, CodingContract, Corporation, Gang, Grafting, NS, ReactElement, Singularity, Sleeve, Stanek, TIX, Go,
+	PlayerRequirement, Skills, CompanyName, JobName
 } from "@ns";
 
 // every possible function type is a subtype of this
@@ -29,6 +29,28 @@ export interface ProxyNS extends Proxied<NS> {
 	readonly stock: Proxied<TIX>;
 	readonly stanek: Proxied<Stanek>;
 	readonly go: Proxied<Go>;
+}
+
+export async function asyncFilter<T>(input: T[], testFunc: (item: T) => Promise<boolean>): Promise<T[]> {
+	const result: T[] = [];
+	for (const item of input) {
+		if (await testFunc(item)) {
+			result.push(item);
+		}
+	}
+	return result;
+}
+
+export async function sortByAsyncKey<T>(input: T[], calculateKey: (item: T) => Promise<number>): Promise<T[]> {
+	const keys = new Map<T, number>();
+	for (const item of input) {
+		keys.set(item, await calculateKey(item));
+	}
+	return input.sort((itemA, itemB) => {
+		const keyA = keys.get(itemA), keyB = keys.get(itemB);
+		if (keyA === undefined || keyB === undefined) throw 'unreachable';
+		return keyA - keyB; // sort lowest to highest; to sort highest to lowest, make calculateKey return the thing times -1
+	});
 }
 
 /**
@@ -386,6 +408,7 @@ export async function augLister(ns: NS): Promise<string[]> {
 		const factaugs = await wrapNS(ns).singularity.getAugmentationsFromFactionD(faction);
 		for (const targaug of factaugs) { if (!auglist.includes(targaug)) { auglist.push(targaug); } }
 	}
+	/*
 	if (bitnodeAccess(ns, 6, 1) || bitnodeAccess(ns, 7, 1)) { 
 		const factaugs = await wrapNS(ns).singularity.getAugmentationsFromFactionD("Bladeburners");
 		for (const targaug of factaugs) { auglist.push(targaug); }
@@ -394,5 +417,112 @@ export async function augLister(ns: NS): Promise<string[]> {
 		const factaugs = await wrapNS(ns).singularity.getAugmentationsFromFactionD("Church of the Machine God");
 		for (const targaug of factaugs) { auglist.push(targaug); }
 	}
+	*/
 	return auglist.sort((a, b) => { return ns.singularity.getAugmentationRepReq(a) - ns.singularity.getAugmentationRepReq(b); });
+}
+
+
+export function getPlayerJobs(ns: NS): [CompanyName, JobName][] { return Object.entries(ns.getPlayer().jobs) as [CompanyName, JobName][]; }
+
+export function reqCheck(ns: NS, req: PlayerRequirement): boolean {
+	switch (req.type) {
+		case "someCondition": return req.conditions.some(subReq => reqCheck(ns, subReq));
+		case "everyCondition": return req.conditions.every(subReq => reqCheck(ns, subReq));
+		case "not": return !reqCheck(ns, req.condition);
+		case "backdoorInstalled": return ns.getServer(req.server).backdoorInstalled as boolean;
+		case "city": return ns.getPlayer().city == req.city;
+		case "karma": return ns.getPlayer().karma <= req.karma;
+		case "money": return ns.getServerMoneyAvailable("home") >= req.money;
+		case "skills": return Object.keys(req.skills).every(skillName => {
+			return (req.skills[skillName as keyof Skills] ?? 0) <= ns.getPlayer().skills[skillName as keyof Skills]
+		});
+		case "numPeopleKilled": return ns.getPlayer().numPeopleKilled >= req.numPeopleKilled;
+		case "bitNodeN": return ns.getResetInfo().currentNode == req.bitNodeN;
+		case "sourceFile": return ns.getResetInfo().ownedSF.get(req.sourceFile) != undefined;
+		case "numAugmentations": return ns.getResetInfo().ownedAugs.size >= req.numAugmentations;
+		case "employedBy": return getPlayerJobs(ns).flat().includes(req.company);
+		case "jobTitle": return getPlayerJobs(ns).flat().includes(req.jobTitle);
+		case "companyReputation": return ns.singularity.getCompanyRep(req.company) >= req.reputation;
+		default: return true;
+	}
+}
+
+export function hasThisReq(reqs: PlayerRequirement[], type: string): boolean {
+	let foundit = false;
+	for (const req of reqs) {
+		if (req.type == "someCondition" && hasThisReq(req.conditions, type)) { foundit = true; }
+		if (req.type == "everyCondition" && hasThisReq(req.conditions, type)) { foundit = true; }
+		if (req.type == type) { foundit = true; }
+	}
+	return foundit;
+}
+
+export function getThisReq(reqs: PlayerRequirement[], type: string): PlayerRequirement | undefined {
+	let thething = undefined;
+	for (const req of reqs) {
+		if (req.type == "someCondition" && hasThisReq(req.conditions, type)) { thething = getThisReq(req.conditions, type); }
+		if (req.type == "everyCondition" && hasThisReq(req.conditions, type)) { thething = getThisReq(req.conditions, type); }
+		if (req.type == type) { thething = req }
+	}
+	return thething;
+}
+
+export function getFactionUnmetReqs(ns: NS, faction: string): PlayerRequirement[] {
+	let unmet = [];
+	if (!ns.getPlayer().factions.includes(faction) && !ns.singularity.checkFactionInvitations().includes(faction)) {
+		const facreqs = ns.singularity.getFactionInviteRequirements(faction);
+		for (const req of facreqs) { if (!reqCheck(ns, req)) { unmet.push(req); } }
+	}
+	return unmet;
+}
+
+/**
+ * Checks for the Neuroreceptor Management Implant, and returns true if lacking the aug, to avoid unfocused work penalties.
+ * @param ns BitBurner NS object
+ * @returns returns true if the unfocused work penalty applies, false otherwise
+ */
+export async function hasFocusPenalty(ns: NS): Promise<boolean> {
+	return !(await wrapNS(ns).singularity.getOwnedAugmentationsD()).includes("Neuroreceptor Management Implant");
+}
+
+export async function hasGraftPenalty(ns: NS): Promise<boolean> {
+	return !(await wrapNS(ns).singularity.getOwnedAugmentationsD()).includes("violet Congruity Implant");
+}
+
+export async function hasNoBladesim(ns: NS): Promise<boolean> {
+	return !(await wrapNS(ns).singularity.getOwnedAugmentationsD()).includes("The Blade's Simulacrum");
+}
+
+/**
+ * Checks if a given faction still has unowned augments to buy. 
+ * Notably, if a gang exists, non-gang factions passed to this will exclude augments the gang offers.
+ * This can result in the function returning false far more often once a gang is joined. 
+ * @param ns BitBurner NS object
+ * @param faction string of a faction name to check for augments
+ * @returns true if faction still has augments left to get, false otherwise
+ */
+export async function factionHasAugs(ns: NS, faction: string): Promise<boolean> {
+	let factionaugs = await wrapNS(ns).singularity.getAugmentationsFromFactionD(faction);
+	const ownedAugs = await wrapNS(ns).singularity.getOwnedAugmentationsD(true);
+	factionaugs = factionaugs.filter(async aug => !ownedAugs.includes(aug));
+	if (ns.gang.inGang() && ns.gang.getGangInformation().faction != faction) {
+		const gangAugs = await wrapNS(ns).singularity.getAugmentationsFromFactionD(ns.gang.getGangInformation().faction);
+		factionaugs = factionaugs.filter(async aug => !gangAugs.includes(aug));
+	}
+	return (factionaugs.length > 0);
+}
+
+export async function getRemainingFactions(ns: NS): Promise<string[]> {
+	return await asyncFilter(desiredfactions, async fac => await factionHasAugs(ns, fac));
+}
+
+export async function joinEveryInvitedFaction(ns: NS): Promise<void> {
+	const cityFactions = ["Aevum", "Chongqing", "New Tokyo", "Ishima", "Sector-12", "Volhaven"];
+	const wsing = wrapNS(ns).singularity;
+	if (cityFactions.some(fac => ns.getPlayer().factions.includes(fac))) {
+		for (const fac of await wsing.checkFactionInvitationsD()) { await wsing.joinFactionD(fac); }
+	} else {
+		for (const fac of await wsing.checkFactionInvitationsD()) { if (!cityFactions.includes(fac)) { await wsing.joinFactionD(fac); } }
+		for (const city of cityFactions) { if (await factionHasAugs(ns, city)) { await wsing.joinFactionD(city); } }
+	}
 }
