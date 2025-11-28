@@ -90,24 +90,6 @@ export const desiredfactions = [
 ];
 
 /**
- * A list of names for naming gang members with. 
- */
-export const gangNames = [
-	"Jerry",
-	"George",
-	"Elaine",
-	"Kramer",
-	"Konata",
-	"Kagami",
-	"Miyuki",
-	"Tsukasa",
-	"Finn",
-	"Jake",
-	"Bonnibel",
-	"Marcilene"
-];
-
-/**
  * Creates a subscript on the largest free accessable server and passes it a function to run, waiting if there's not enough memory.
  * @param ns BitBurner NS object
  * @param fn function being called as a string
